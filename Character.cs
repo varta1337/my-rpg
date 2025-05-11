@@ -72,6 +72,9 @@ namespace MyDiscordBot
         public List<Character> NearbyEnemies { get; private set; }
         public List<Quest> ActiveQuests { get; private set; }
         public List<Quest> CompletedQuests { get; private set; }
+        public Dictionary<SkillType, int> Skills { get; private set; }
+        public Dictionary<SkillType, int> SkillExperience { get; private set; }
+        public int Gold { get; private set; }
 
         public Character(string name)
         {
@@ -92,10 +95,20 @@ namespace MyDiscordBot
             NearbyEnemies = new List<Character>();
             ActiveQuests = new List<Quest>();
             CompletedQuests = new List<Quest>();
+            Skills = new Dictionary<SkillType, int>();
+            SkillExperience = new Dictionary<SkillType, int>();
+            
+            // Initialize all skills at level 1
+            foreach (SkillType skill in Enum.GetValues(typeof(SkillType)))
+            {
+                Skills[skill] = 1;
+                SkillExperience[skill] = 0;
+            }
 
             // Give starting items
             Inventory.Add(new ConsumableItem("Health Potion", "Restores 25 health", 0.5f, 10, 25, 0, 0, 0));
             Inventory.Add(new Weapon("Rusty Knife", "A basic weapon", 1.0f, 5, 10, 100, WeaponType.Melee));
+            Gold = 100; // Starting gold
         }
 
         public void Update()
@@ -478,6 +491,126 @@ namespace MyDiscordBot
                 enemy.Health = 75;
                 NearbyEnemies.Add(enemy);
             }
+        }
+
+        public void AddSkillExperience(SkillType skill, int amount)
+        {
+            SkillExperience[skill] += amount;
+            while (SkillExperience[skill] >= Skills[skill] * 100)
+            {
+                Skills[skill]++;
+                SkillExperience[skill] -= (Skills[skill] - 1) * 100;
+            }
+        }
+
+        public string ShowSkills()
+        {
+            var response = "🎯 **Your Skills:**\n";
+            foreach (var skill in Skills)
+            {
+                response += $"• {skill.Key}: Level {skill.Value} ({SkillExperience[skill.Value]} XP)\n";
+            }
+            return response;
+        }
+
+        public string Craft(string itemName)
+        {
+            // Check if player has required crafting level
+            if (Skills[SkillType.Crafting] < 2)
+            {
+                return "❌ You need at least level 2 in Crafting to create items.";
+            }
+
+            // Define recipes
+            var recipes = new Dictionary<string, (string[] materials, Item result)>
+            {
+                ["health potion"] = (
+                    new[] { "herb", "water" },
+                    new ConsumableItem("Health Potion", "Restores 25 health", 0.5f, 10, 25, 0, 0, 0)
+                ),
+                ["wooden sword"] = (
+                    new[] { "wood", "string" },
+                    new Weapon("Wooden Sword", "A basic training weapon", 2.0f, 15, 8, 50, WeaponType.Melee)
+                )
+            };
+
+            if (!recipes.TryGetValue(itemName.ToLower(), out var recipe))
+            {
+                return "❌ Unknown recipe.";
+            }
+
+            // Check if player has all required materials
+            foreach (var material in recipe.materials)
+            {
+                if (!Inventory.Items.Any(i => i.Name.ToLower() == material))
+                {
+                    return $"❌ You need {material} to craft this item.";
+                }
+            }
+
+            // Remove materials and add crafted item
+            foreach (var material in recipe.materials)
+            {
+                var item = Inventory.Items.First(i => i.Name.ToLower() == material);
+                Inventory.Remove(item);
+            }
+
+            Inventory.Add(recipe.result);
+            AddSkillExperience(SkillType.Crafting, 25);
+            return $"✨ Successfully crafted {recipe.result.Name}!";
+        }
+
+        public string Buy(string itemName, Character merchant)
+        {
+            if (merchant == null || !NearbyNPCs.Contains(merchant))
+            {
+                return "❌ There is no merchant nearby.";
+            }
+
+            var item = merchant.Inventory.Items.FirstOrDefault(i => i.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+            {
+                return "❌ The merchant doesn't have that item.";
+            }
+
+            if (Gold < item.Value)
+            {
+                return $"❌ You need {item.Value} gold to buy this item.";
+            }
+
+            Gold -= item.Value;
+            merchant.Gold += item.Value;
+            merchant.Inventory.Remove(item);
+            Inventory.Add(item);
+            AddSkillExperience(SkillType.Trading, 10);
+            return $"💰 You bought {item.Name} for {item.Value} gold.";
+        }
+
+        public string Sell(string itemName, Character merchant)
+        {
+            if (merchant == null || !NearbyNPCs.Contains(merchant))
+            {
+                return "❌ There is no merchant nearby.";
+            }
+
+            var item = Inventory.Items.FirstOrDefault(i => i.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+            {
+                return "❌ You don't have that item.";
+            }
+
+            int sellValue = (int)(item.Value * 0.7f); // 70% of original value
+            if (merchant.Gold < sellValue)
+            {
+                return "❌ The merchant doesn't have enough gold.";
+            }
+
+            Gold += sellValue;
+            merchant.Gold -= sellValue;
+            Inventory.Remove(item);
+            merchant.Inventory.Add(item);
+            AddSkillExperience(SkillType.Trading, 5);
+            return $"💰 You sold {item.Name} for {sellValue} gold.";
         }
     }
 
