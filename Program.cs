@@ -231,6 +231,79 @@ namespace MyDiscordBot
                         }
                         break;
 
+                    case "skills":
+                        if (_playerCharacters.TryGetValue(message.Author.Id, out Character skiller))
+                        {
+                            response = skiller.ShowSkills();
+                        }
+                        else
+                        {
+                            response = "❌ You haven't created a character yet! Use !start to begin.";
+                        }
+                        break;
+
+                    case "craft":
+                        if (_playerCharacters.TryGetValue(message.Author.Id, out Character crafter))
+                        {
+                            string[] parts = message.Content.Split(' ');
+                            if (parts.Length < 2)
+                            {
+                                response = "❌ Please specify what to craft.";
+                            }
+                            else
+                            {
+                                string itemName = string.Join(" ", parts.Skip(1));
+                                response = crafter.Craft(itemName);
+                            }
+                        }
+                        else
+                        {
+                            response = "❌ You haven't created a character yet! Use !start to begin.";
+                        }
+                        break;
+
+                    case "buy":
+                        if (_playerCharacters.TryGetValue(message.Author.Id, out Character buyer))
+                        {
+                            string[] parts = message.Content.Split(' ');
+                            if (parts.Length < 2)
+                            {
+                                response = "❌ Please specify what to buy.";
+                            }
+                            else
+                            {
+                                string itemName = string.Join(" ", parts.Skip(1));
+                                var merchant = buyer.NearbyNPCs.FirstOrDefault(n => n.Name == "Merchant");
+                                response = buyer.Buy(itemName, merchant);
+                            }
+                        }
+                        else
+                        {
+                            response = "❌ You haven't created a character yet! Use !start to begin.";
+                        }
+                        break;
+
+                    case "sell":
+                        if (_playerCharacters.TryGetValue(message.Author.Id, out Character seller))
+                        {
+                            string[] parts = message.Content.Split(' ');
+                            if (parts.Length < 2)
+                            {
+                                response = "❌ Please specify what to sell.";
+                            }
+                            else
+                            {
+                                string itemName = string.Join(" ", parts.Skip(1));
+                                var merchant = seller.NearbyNPCs.FirstOrDefault(n => n.Name == "Merchant");
+                                response = seller.Sell(itemName, merchant);
+                            }
+                        }
+                        else
+                        {
+                            response = "❌ You haven't created a character yet! Use !start to begin.";
+                        }
+                        break;
+
                     default:
                         response = "❓ Unknown command. Type !help for available commands.";
                         break;
